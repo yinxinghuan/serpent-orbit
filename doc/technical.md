@@ -33,17 +33,19 @@ doc/                            需求、视觉与技术文档
 
 `main.ts` 每帧先运行原 `RAFCollection`，再从 `ExperienceUI.update(delta)` 取得 `{progress, haloPhase}`，把 `haloPhase` 写入 `Snake.setRitualPhase()`，随后执行原蛇体更新与 WebGL 渲染。状态顺序为 `idle/guide → tracking → halo → idle`，其中 `haloPhase=-1` 表示原材质，`0..1` 表示完成脉冲位置。
 
+`CurveGenerator` 对首帧“曲线起点与目标珠重合”增加 `dist < 0.001` 边界：沿上一切线起步，不对零向量进入 coil 计算。这防止第一段垂直窜出场景，并保留后续原 seek/orbit/coil 行为。
+
 ### 曲线与渲染
 
 `CurveGenerator` 每次生成 4–8 单位的三次贝塞尔段，使用 seek、近距离 orbit、垂直 coil、simplex wander 和 1.15 弧度最大转向限制。`EndlessCurve` 根据蛇头前进距离按需添加新段、移除尾部旧段，并缓存每段 11 个并行传输法线。`SnakeObject` 每帧把 50–100 个位置与法线样本上传到 Float DataTexture，vertex shader 用它们摆放 300–800 个压扁八面体实例。
 
 ### 输入、引导与闭环
 
-`Input.setVirtualPosition()` 让真实指针、键盘自动圆周和幽灵手指共享同一个 NDC 坐标入口，所以引导必然推动真实目标球与蛇体。引导的 0.78 圈结束时会通过同一入口把目标重置到屏幕中心，避免无输入状态的蛇体持续游向画外。`ExperienceUI` 在有效半径内累计同向极角，达到 `1.65π` 进入 1.8 秒完成态；松手保留 2.4 秒，随后用 900 毫秒回落。完成时目标回到屏幕中心，fragment shader 的 `u_ritual` 窄带从尾扫向头，结束后恢复 `-1`。
+`main.ts` 在产品模式也创建 OrbitControls。`Input.preInit(false)` 停止全局 pointermove 偷走目标球；`ExperienceUI` 在 capture 阶段只接管从当前珍珠 64 px 命中区起手的手势，其他起点交给 OrbitControls，手势期间不中途换所有者。`Input.setVirtualPosition()` 仍让命中后的真实指针、键盘圆周和幽灵手指共享同一 NDC 入口。`ExperienceUI` 累计同向极角达 `1.65π` 后进入 1.8 秒完成态，fragment shader 的 `u_ritual` 窄带从尾扫向头，结束后恢复 `-1`。
 
 ### 屏幕适配与性能
 
-`Properties.getSnakeConfig()` 沿用上游移动端低档（50×6 实例、50 个纹理采样、DPR 1）和桌面高档（100×8、100 采样、设备 DPR）。DOM 使用安全区、390×844 与 320×568 固定全屏测试；页面 `overflow:hidden`、`touch-action:none`。WebGL context 丢失时暂停渲染，恢复后重建场景。
+`Properties.getSnakeConfig()` 沿用上游移动端低档（50×6 实例、50 个纹理采样、DPR 1）和桌面高档（100×8、100 采样、设备 DPR）。低档由手机 UA **或** `innerWidth≤600` 任一条件触发，避免内嵌浏览器 UA 不可识别时把 26 单位长蛇放进竖屏。DOM 使用安全区、390×844 与 320×568 固定全屏测试；页面 `overflow:hidden`、`touch-action:none`。
 
 ### 音频与多语言
 

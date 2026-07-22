@@ -140,34 +140,41 @@ export function createCurveGenerator(options: CurveGeneratorOptions = {}): (targ
       // get target
       const toTarget = target.clone().sub(lastPoint)
       const dist = toTarget.length()
-      const targetDir = toTarget.normalize()
-      const tangent = new Vector3(-targetDir.z, 0, targetDir.x)
-
-      // update coil
-      const isOrbiting = dist < orbitRadius * 1.5
-      if (isOrbiting) {
-        const circumference = 2 * Math.PI * orbitRadius
-        const arcFraction = length / circumference
-        orbitAngle += arcFraction * 2 * Math.PI
-        coilActivation = Math.min(1, coilActivation + 0.15)
+      if (dist < 0.001) {
+        // The first target starts at the same world position as the curve.
+        // Keep the existing tangent instead of normalizing a zero vector and
+        // letting the coil term launch the whole snake vertically off-screen.
+        desiredDir = lastDir.clone()
       } else {
-        coilActivation = Math.max(0, coilActivation - 0.15)
-      }
+        const targetDir = toTarget.normalize()
+        const tangent = new Vector3(-targetDir.z, 0, targetDir.x)
 
-      // update direction
-      if (dist > orbitRadius * 1.5) {
-        // seek directly toward target
-        desiredDir = targetDir
-      } else {
-        // orbit with radius correction
-        const radiusError = dist - orbitRadius
-        const radialStrength = radiusError * 0.1
+        // update coil
+        const isOrbiting = dist < orbitRadius * 1.5
+        if (isOrbiting) {
+          const circumference = 2 * Math.PI * orbitRadius
+          const arcFraction = length / circumference
+          orbitAngle += arcFraction * 2 * Math.PI
+          coilActivation = Math.min(1, coilActivation + 0.15)
+        } else {
+          coilActivation = Math.max(0, coilActivation - 0.15)
+        }
 
-        // coil - vertical oscillation (derivative of sin = cos)
-        const coilY = coilAmplitude * coilFrequency * Math.cos(coilFrequency * orbitAngle) * coilActivation
-        const coilTangent = new Vector3(tangent.x, coilY, tangent.z)
+        // update direction
+        if (dist > orbitRadius * 1.5) {
+          // seek directly toward target
+          desiredDir = targetDir
+        } else {
+          // orbit with radius correction
+          const radiusError = dist - orbitRadius
+          const radialStrength = radiusError * 0.1
 
-        desiredDir = coilTangent.clone().addScaledVector(targetDir, radialStrength).normalize()
+          // coil - vertical oscillation (derivative of sin = cos)
+          const coilY = coilAmplitude * coilFrequency * Math.cos(coilFrequency * orbitAngle) * coilActivation
+          const coilTangent = new Vector3(tangent.x, coilY, tangent.z)
+
+          desiredDir = coilTangent.clone().addScaledVector(targetDir, radialStrength).normalize()
+        }
       }
     } else {
       // update direction

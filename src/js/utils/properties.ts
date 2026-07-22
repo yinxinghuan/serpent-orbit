@@ -29,9 +29,10 @@ export class Properties {
   static gui: GUI | null = import.meta.env.DEV && Properties.isBaseline ? new GUI() : null
 
   private static detectQualityLevel(): QualityLevel {
-    // Mobile devices → low quality for performance
-    if (this.isMobile) {
-      console.log("[Properties] Detected quality: low (mobile device)")
+    // Embedded browsers do not always expose a recognizable mobile UA.
+    // Treat the actual narrow viewport as the authoritative composition signal.
+    if (this.isMobile || window.innerWidth <= 600) {
+      console.log("[Properties] Detected quality: low (mobile device or narrow viewport)")
       return "low"
     }
 

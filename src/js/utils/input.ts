@@ -40,14 +40,16 @@ export class Input {
     }
   }
 
-  static preInit() {
+  static preInit(trackPointer = true) {
     this.updateViewportCache()
 
     this.boundOnMove = this._onMove.bind(this) as (e: MouseEvent) => void
     this.boundTouchMove = this._getTouch(this, this._onMove)
 
-    document.addEventListener("mousemove", this.boundOnMove, { passive: true })
-    document.addEventListener("touchmove", this.boundTouchMove, { passive: true })
+    if (trackPointer) {
+      document.addEventListener("mousemove", this.boundOnMove, { passive: true })
+      document.addEventListener("touchmove", this.boundTouchMove, { passive: true })
+    }
   }
 
   static update() {}

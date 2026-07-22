@@ -26,8 +26,17 @@ export class ExperienceUI {
   private keyboardAge = -1
   private audio: AudioContext | null = null
   private toneLevel = 0
+  private activePointerId: number | null = null
+  private targetX = innerWidth * 0.5
+  private targetY = innerHeight * 0.5
 
   private readonly onPointerDown = (event: PointerEvent) => {
+    if (this.haloAge >= 0 || this.activePointerId !== null) return
+    if (Math.hypot(event.clientX - this.targetX, event.clientY - this.targetY) > 64) return
+    event.preventDefault()
+    event.stopPropagation()
+    this.controls.enabled = false
+    this.activePointerId = event.pointerId
     this.hasInteracted = true
     this.pointerDown = true
     this.releaseAge = 0
@@ -40,13 +49,20 @@ export class ExperienceUI {
   }
 
   private readonly onPointerMove = (event: PointerEvent) => {
-    if (!this.pointerDown || this.haloAge >= 0) return
+    if (!this.pointerDown || this.haloAge >= 0 || event.pointerId !== this.activePointerId) return
+    event.preventDefault()
+    event.stopPropagation()
     this.updateInput(event.clientX, event.clientY)
     this.trackArc(event.clientX, event.clientY)
   }
 
-  private readonly onPointerUp = () => {
+  private readonly onPointerUp = (event: PointerEvent) => {
+    if (event.pointerId !== this.activePointerId) return
+    event.preventDefault()
+    event.stopPropagation()
     this.pointerDown = false
+    this.activePointerId = null
+    this.controls.enabled = true
     this.previousAngle = null
     this.releaseAge = 0
   }
@@ -67,13 +83,13 @@ export class ExperienceUI {
     this.keyboardAge = -1
   }
 
-  constructor(private readonly baseline: boolean) {
+  constructor(private readonly baseline: boolean, private readonly controls: { enabled: boolean }) {
     if (baseline) return
     this.mount()
-    document.addEventListener("pointerdown", this.onPointerDown, { passive: true })
-    document.addEventListener("pointermove", this.onPointerMove, { passive: true })
-    document.addEventListener("pointerup", this.onPointerUp, { passive: true })
-    document.addEventListener("pointercancel", this.onPointerUp, { passive: true })
+    document.addEventListener("pointerdown", this.onPointerDown, { passive: false, capture: true })
+    document.addEventListener("pointermove", this.onPointerMove, { passive: false, capture: true })
+    document.addEventListener("pointerup", this.onPointerUp, { passive: false, capture: true })
+    document.addEventListener("pointercancel", this.onPointerUp, { passive: false, capture: true })
     document.addEventListener("keydown", this.onKeyDown)
     document.addEventListener("keyup", this.onKeyUp)
   }
@@ -87,7 +103,7 @@ export class ExperienceUI {
       <div class="sh-ghost" aria-hidden="true">
         <svg viewBox="0 0 24 24"><path d="M9 11.24V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6c0-.83-.67-1.5-1.5-1.5S10 6.67 10 7.5v10.74l-3.43-.72c-.08-.01-.15-.03-.24-.03-.31 0-.59.13-.79.33l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27c.01-.07.02-.14.02-.2 0-.62-.38-1.16-.91-1.39z"/></svg>
       </div>
-      <div class="sh-hint">${t("hint")}</div>`
+      `
     document.body.append(root)
     this.root = root
     this.ghost = root.querySelector(".sh-ghost")
@@ -100,6 +116,8 @@ export class ExperienceUI {
 
   private updateInput(x: number, y: number): void {
     Input.setVirtualPosition(x, y)
+    this.targetX = x
+    this.targetY = y
     this.root?.style.setProperty("--target-x", `${x}px`)
     this.root?.style.setProperty("--target-y", `${y}px`)
   }
@@ -134,7 +152,6 @@ export class ExperienceUI {
   private setProgress(value: number): void {
     this.progress = Math.max(0, Math.min(1, value))
     this.root?.style.setProperty("--progress", String(this.progress))
-    if (this.progress > 0.05 && this.hint && this.haloAge < 0) this.hint.textContent = t("progress")
     const nextTone = Math.min(4, Math.floor(this.progress * 4))
     if (nextTone > this.toneLevel && nextTone < 4) {
       this.tone([220, 277, 330][nextTone - 1], 0.055, 0.012, "triangle")
@@ -147,7 +164,6 @@ export class ExperienceUI {
     this.haloAge = 0
     this.pointerDown = false
     this.previousAngle = null
-    this.hint!.textContent = t("complete")
     this.root?.classList.add("sh-ui--complete")
     this.tone(440, 0.42, 0.018, "sine")
     window.setTimeout(() => this.tone(660, 0.34, 0.012, "sine"), 65)
@@ -240,15 +256,14 @@ export class ExperienceUI {
     this.toneLevel = 0
     this.root?.classList.remove("sh-ui--complete")
     this.root?.style.setProperty("--progress", "0")
-    if (this.hint) this.hint.textContent = t("hint")
   }
 
   destroy(): void {
     if (this.baseline) return
-    document.removeEventListener("pointerdown", this.onPointerDown)
-    document.removeEventListener("pointermove", this.onPointerMove)
-    document.removeEventListener("pointerup", this.onPointerUp)
-    document.removeEventListener("pointercancel", this.onPointerUp)
+    document.removeEventListener("pointerdown", this.onPointerDown, true)
+    document.removeEventListener("pointermove", this.onPointerMove, true)
+    document.removeEventListener("pointerup", this.onPointerUp, true)
+    document.removeEventListener("pointercancel", this.onPointerUp, true)
     document.removeEventListener("keydown", this.onKeyDown)
     document.removeEventListener("keyup", this.onKeyUp)
     void this.audio?.close()

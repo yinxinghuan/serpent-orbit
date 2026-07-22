@@ -1,4 +1,5 @@
 import { NoToneMapping, PerspectiveCamera, Scene, SRGBColorSpace, WebGLRenderer } from "three"
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import "../css/style.css"
 import { Snake } from "./components/Snake"
 import { RAFCollection } from "./utils/RAFCollection"
@@ -10,6 +11,7 @@ class App {
   gl: WebGLRenderer
   scene: Scene
   camera: PerspectiveCamera
+  controls: OrbitControls
 
   // components
   snake: Snake
@@ -49,7 +51,7 @@ class App {
     this.gl.domElement.style.position = "fixed"
     this.gl.domElement.style.left = "0px"
     this.gl.domElement.style.top = "0px"
-    this.gl.domElement.style.pointerEvents = "none"
+    this.gl.domElement.style.pointerEvents = "auto"
     this.gl.setPixelRatio(config.dpr)
     document.body.prepend(this.gl.domElement)
 
@@ -72,13 +74,19 @@ class App {
     this.camera = new PerspectiveCamera(45, Properties.viewportWidth / Properties.viewportHeight, 0.1, 200)
     this.camera.position.set(0, 15, 20)
     this.camera.lookAt(0, 0, 0)
+    this.controls = new OrbitControls(this.camera, this.gl.domElement)
+    this.controls.enableDamping = true
+    this.controls.enablePan = false
+    this.controls.minDistance = 14
+    this.controls.maxDistance = 40
+    this.controls.target.set(0, 0, 0)
 
     // pre init
-    Input.preInit()
+    Input.preInit(Properties.isBaseline)
 
     // init components
     this.snake = new Snake()
-    this.experience = new ExperienceUI(Properties.isBaseline)
+    this.experience = new ExperienceUI(Properties.isBaseline, this.controls)
     this.buildScene()
 
     // Add resize listener
@@ -136,6 +144,7 @@ class App {
 
     // update components
     const ritual = this.experience.update(delta)
+    this.controls.update()
     this.snake.setRitualPhase(ritual.haloPhase)
     this.snake.update(this.camera, delta)
 
@@ -154,6 +163,7 @@ class App {
     // Cleanup input event listeners
     Input.destroy()
     this.experience.destroy()
+    this.controls.dispose()
 
     // Dispose Three.js resources
     this.gl.dispose()
