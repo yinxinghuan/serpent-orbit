@@ -15,6 +15,7 @@ export interface SnakeConfig {
 }
 
 export class Properties {
+  static isBaseline = new URLSearchParams(window.location.search).get("baseline") === "1"
   static viewportWidth = 0
   static viewportHeight = 0
   static dpr = Math.min(2, window.devicePixelRatio) ?? 1
@@ -25,7 +26,7 @@ export class Properties {
 
   // Quality level system
   static qualityLevel: QualityLevel = Properties.detectQualityLevel()
-  static gui: GUI | null = import.meta.env.DEV ? new GUI() : null
+  static gui: GUI | null = import.meta.env.DEV && Properties.isBaseline ? new GUI() : null
 
   private static detectQualityLevel(): QualityLevel {
     // Mobile devices → low quality for performance
@@ -73,7 +74,7 @@ export class Properties {
             radialSegments: 8,
             texturePoints: 100,
             dpr: this.dpr, // Use actual device DPR
-            enableDebug: import.meta.env.DEV,
+            enableDebug: import.meta.env.DEV && this.isBaseline,
             shaderQuality: "high" as QualityLevel,
             scaleMin: 0.13,
             scaleMax: 0.65,

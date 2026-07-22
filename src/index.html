@@ -3,19 +3,20 @@
 
 <head>
   <meta charset="UTF-8" />
+  <meta name="game-uuid" content="04fa9e4d-89af-4205-9487-a8fd684be11c" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WebGL Snake | Codrops</title>
+  <title>Serpent Halo</title>
   <meta
         name="description"
         content="Interactive 3D snake animation built with Three.js and WebGL, featuring procedural curve generation and adaptive quality settings" />
   <meta name="keywords" content="threejs, webgl, animation, snake, procedural, 3d, graphics" />
   <meta name="author" content="Codrops" />
-  <link rel="icon" type="image/svg+xml" href="https://tympanus.net/favicon/favicon.svg" />
-  <link rel="shortcut icon" href="https://tympanus.net/favicon/favicon.ico" />
   <script>
     document.documentElement.className = 'js';
+    if (new URLSearchParams(location.search).get('baseline') === '1') {
+      document.documentElement.classList.add('sh-baseline');
+    }
   </script>
-  <script src="//tympanus.net/codrops/adpacks/analytics.js"></script>
 </head>
 
 <body class="demo-1">
@@ -28,7 +29,7 @@
   </noscript>
   <div id="sizer" aria-hidden="true"></div>
   <main>
-    <header class="frame">
+    <header class="frame sh-baseline-frame">
       <h1 class="frame__title">WebGL Snake Animation</h1>
       <a class="frame__back" href="https://tympanus.net/codrops/?p=108307">Article</a>
       <a class="frame__archive" href="https://tympanus.net/codrops/hub/">All demos</a>
@@ -42,7 +43,6 @@
     </header>
     <div class="content"></div>
   </main>
-  <script src="https://tympanus.net/codrops/adpacks/cda_sponsor.js"></script>
   <script type="module" src="./js/main.ts"></script>
 </body>
 

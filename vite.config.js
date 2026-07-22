@@ -7,14 +7,8 @@ export default defineConfig({
   build: {
     outDir: "../dist",
     emptyOutDir: true,
-    minify: "terser",
-    terserOptions: {
-      compress: {
-        drop_console: true, // Remove console.log in production
-        drop_debugger: true,
-        pure_funcs: ["console.log", "console.warn", "console.info"],
-      },
-    },
+    // Keep the upstream output portable without requiring Terser's optional package.
+    minify: "esbuild",
     rollupOptions: {
       output: {
         manualChunks: {

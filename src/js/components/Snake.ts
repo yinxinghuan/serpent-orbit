@@ -128,6 +128,7 @@ class SnakeObject extends Object3D {
     // Color Variation
     u_bellyLightness: { value: 1 },
     u_bellyWidth: { value: 0.5 },
+    u_ritual: { value: -1.0 },
   }
 
   /* ---------------------------------- utils --------------------------------- */
@@ -343,6 +344,7 @@ export class Snake {
   private raycaster = new Raycaster()
   private groundPlane = new Plane(new Vector3(0, 1, 0), 0)
   private mouseTarget = new Vector3()
+  private ritualPhase = -1
 
   // debug
   debugLine?: Line
@@ -581,6 +583,12 @@ export class Snake {
 
   resize() {}
 
+  setRitualPhase(phase: number): void {
+    this.ritualPhase = phase
+    this.snakeObject.uniforms.u_ritual.value = phase
+    this.snakeObject.uniforms.u_animationSpeed.value = phase >= 0 ? 0.55 : 0.0
+  }
+
   update(camera: PerspectiveCamera, delta: number): void {
     // raycast
     this.raycaster.setFromCamera(Input.mouseXY, camera)
@@ -592,6 +600,8 @@ export class Snake {
     // Update target sphere visual position and shader uniforms
     if (this.ball) {
       this.ball.sphere?.position.copy(this.targetSpherePosition)
+      const pulse = this.ritualPhase >= 0 ? 1 + Math.sin(this.ritualPhase * Math.PI) * 0.72 : 1
+      this.ball.sphere?.scale.setScalar(pulse)
       this.ball.uniforms.u_cameraPosition.value.copy(camera.position)
     }
 

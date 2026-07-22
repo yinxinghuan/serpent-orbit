@@ -4,6 +4,7 @@ import { Snake } from "./components/Snake"
 import { RAFCollection } from "./utils/RAFCollection"
 import { Input } from "./utils/input"
 import { Properties } from "./utils/properties"
+import { ExperienceUI } from "./ExperienceUI"
 
 class App {
   gl: WebGLRenderer
@@ -12,6 +13,7 @@ class App {
 
   // components
   snake: Snake
+  experience: ExperienceUI
 
   // variables
   dateTime = performance.now()
@@ -76,6 +78,7 @@ class App {
 
     // init components
     this.snake = new Snake()
+    this.experience = new ExperienceUI(Properties.isBaseline)
     this.buildScene()
 
     // Add resize listener
@@ -132,6 +135,8 @@ class App {
     RAFCollection.forEach((callback) => callback(delta))
 
     // update components
+    const ritual = this.experience.update(delta)
+    this.snake.setRitualPhase(ritual.haloPhase)
     this.snake.update(this.camera, delta)
 
     // render
@@ -148,6 +153,7 @@ class App {
 
     // Cleanup input event listeners
     Input.destroy()
+    this.experience.destroy()
 
     // Dispose Three.js resources
     this.gl.dispose()

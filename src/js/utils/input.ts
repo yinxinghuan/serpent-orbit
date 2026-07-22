@@ -99,6 +99,10 @@ export class Input {
     this._prevMousePixelXY.copy(this.mousePixelXY)
   }
 
+  static setVirtualPosition(clientX: number, clientY: number) {
+    this._onMove({ clientX, clientY } as MouseEvent)
+  }
+
   static _getTouch(context: Input, handler: (e: MouseEvent | Touch) => void, preventDefault?: boolean) {
     return (touchEvent: TouchEvent) => {
       if (preventDefault && touchEvent.preventDefault) {

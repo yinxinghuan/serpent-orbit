@@ -35,6 +35,7 @@ uniform float u_anisotropicRoughness;
 // Color variation uniforms
 uniform float u_bellyLightness;
 uniform float u_bellyWidth;
+uniform float u_ritual;
 
 // Varyings from vertex shader
 varying vec3 vNormal;
@@ -242,6 +243,16 @@ void main() {
 
   // Combine all lighting components
   color = color * diffuse + specular + rimLight;
+
+  // A single restrained completion pulse travels from tail to head.
+  if (u_ritual >= 0.0) {
+    float ritualWidth = 0.11;
+    float ritualBand = 1.0 - smoothstep(ritualWidth * 0.25, ritualWidth, abs(vSpineU - u_ritual));
+    float ritualEnvelope = sin(u_ritual * 3.14159265359);
+    float ritualGlow = ritualBand * ritualEnvelope;
+    color = mix(color, vec3(0.956, 1.0, 0.976), ritualGlow * 0.78);
+    color += vec3(0.20, 0.48, 0.43) * ritualGlow * 0.32;
+  }
 
   /* --------------------------------- output --------------------------------- */
   gl_FragColor = vec4(color, 1.0);
