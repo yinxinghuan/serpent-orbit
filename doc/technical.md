@@ -37,7 +37,9 @@ doc/                            需求、视觉与技术文档
 
 ### 曲线与渲染
 
-`CurveGenerator` 每次生成 4–8 单位的三次贝塞尔段，使用 seek、近距离 orbit、垂直 coil、simplex wander 和 1.15 弧度最大转向限制。`EndlessCurve` 根据蛇头前进距离按需添加新段、移除尾部旧段，并缓存每段 11 个并行传输法线。`SnakeObject` 每帧把 50–100 个位置与法线样本上传到 Float DataTexture，vertex shader 用它们摆放 300–800 个压扁八面体实例。
+`CurveGenerator` 每次生成 4–8 单位的三次贝塞尔段，使用 seek、近距离 orbit、垂直 coil、simplex wander 和 1.15 弧度最大转向限制。`EndlessCurve` 根据蛇头前进距离按需添加新段、移除尾部旧段，并缓存每段 11 个并行传输法线。`SnakeObject` 每帧把 64–100 个位置与法线样本上传到 Float DataTexture，vertex shader 用它们摆放 512–800 个压扁八面体实例。
+
+浮点曲线纹理使用 `NearestFilter` 读取离散行，不再依赖移动 WebView 不一定提供的 `OES_texture_float_linear`。产品模式还在鳞片下方维护一层 CPU 连续蛇身：它直接采样同一个 `EndlessCurve` basis，并复用头、颈、尾粗细公式写入动态 `BufferGeometry`；即使顶点纹理不可用，主蛇身仍可显示。
 
 ### 输入、引导与闭环
 
@@ -45,7 +47,7 @@ doc/                            需求、视觉与技术文档
 
 ### 屏幕适配与性能
 
-`Properties.getSnakeConfig()` 沿用上游移动端低档（50×6 实例、50 个纹理采样、DPR 1）和桌面高档（100×8、100 采样、设备 DPR）。低档由手机 UA **或** `innerWidth≤600` 任一条件触发，避免内嵌浏览器 UA 不可识别时把 26 单位长蛇放进竖屏。DOM 使用安全区、390×844 与 320×568 固定全屏测试；页面 `overflow:hidden`、`touch-action:none`。
+`Properties.getSnakeConfig()` 使用移动端低档（64×8 实例、64 个纹理采样、DPR 1）和桌面高档（100×8、100 采样、设备 DPR）。低档由手机 UA **或** `innerWidth≤600` 任一条件触发。产品触点投射到穿过当前构图中心的相机正对平面；蛇、目标球和交互平面作为同一 Group，平滑跟随曲线包围盒中心，因此自由相机和随机曲线都不会把主蛇身长期送出竖屏。`?baseline=1` 保留原水平地面映射。DOM 使用安全区、390×844 与 320×568 固定全屏测试；页面 `overflow:hidden`、`touch-action:none`。
 
 ### 音频与多语言
 

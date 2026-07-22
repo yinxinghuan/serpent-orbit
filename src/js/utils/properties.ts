@@ -46,15 +46,17 @@ export class Properties {
       switch (this.qualityLevel) {
         case "low":
           return {
-            length: 10, // Shorter snake for mobile
-            spineSegments: 50, // 100 → 50 (50% reduction)
-            radialSegments: 6, // 8 → 4 (50% reduction)
-            texturePoints: 50, // 100 → 50 (50% reduction)
+            length: 15,
+            spineSegments: 64,
+            radialSegments: 8,
+            texturePoints: 64,
             dpr: 1, // Force 1x on mobile
             enableDebug: false,
             shaderQuality: "low" as QualityLevel,
-            scaleMin: 0.05,
-            scaleMax: 0.4,
+            // Keep the main subject substantial after the mobile camera pulls
+            // back; shader complexity remains far below the desktop profile.
+            scaleMin: 0.12,
+            scaleMax: 0.72,
           }
         case "medium":
           return {

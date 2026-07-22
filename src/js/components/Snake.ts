@@ -1,15 +1,17 @@
 import {
+  BufferAttribute,
   BufferGeometry,
   Color,
   CubicBezierCurve3,
   DataTexture,
   DoubleSide,
+  DynamicDrawUsage,
   FloatType,
   Group,
   InstancedBufferAttribute,
   InstancedMesh,
   Line,
-  LinearFilter,
+  NearestFilter,
   LineBasicMaterial,
   Matrix4,
   Mesh,
@@ -49,6 +51,10 @@ class SnakeObject extends Object3D {
   private curve?: EndlessCurve
   private mesh?: InstancedMesh
   private material?: ShaderMaterial
+  private coreMesh?: Mesh
+  private coreGeometry?: BufferGeometry
+  private corePositions?: Float32Array
+  private coreNormals?: Float32Array
 
   private positionTex?: DataTexture
   private normalTex?: DataTexture
@@ -135,8 +141,11 @@ class SnakeObject extends Object3D {
   private createDataTexture(): DataTexture {
     const data = new Float32Array((this.texturePoints ?? 0) * 4)
     const texture = new DataTexture(data, this.texturePoints, 1, RGBAFormat, FloatType)
-    texture.minFilter = LinearFilter
-    texture.magFilter = LinearFilter
+    // Every scale instance samples a discrete curve row. Nearest filtering is
+    // enough here and, unlike linear FloatType filtering, works in older mobile
+    // WebViews without OES_texture_float_linear.
+    texture.minFilter = NearestFilter
+    texture.magFilter = NearestFilter
     texture.needsUpdate = true
     return texture
   }
@@ -166,6 +175,105 @@ class SnakeObject extends Object3D {
     geometry.setAttribute("theta", new InstancedBufferAttribute(thetas, 1))
 
     return geometry
+  }
+
+  /**
+   * A continuous CPU-authored inner body beneath the GPU scales.
+   *
+   * Besides making the scales read as one creature, this is a compatibility
+   * floor for WebViews that expose WebGL but cannot sample FloatType textures in
+   * the vertex stage. It follows the exact same EndlessCurve basis and thickness
+   * profile as the scale shader, so this is not a second animation system.
+   */
+  private createCoreGeometry(): BufferGeometry {
+    const rings = this.spineSegments ?? 0
+    const sides = Math.max(6, this.radialSegments ?? 0)
+    const vertexCount = rings * sides
+    this.corePositions = new Float32Array(vertexCount * 3)
+    this.coreNormals = new Float32Array(vertexCount * 3)
+    const indices: number[] = []
+
+    for (let row = 0; row < rings - 1; row++) {
+      for (let col = 0; col < sides; col++) {
+        const next = (col + 1) % sides
+        const a = row * sides + col
+        const b = (row + 1) * sides + col
+        const c = (row + 1) * sides + next
+        const d = row * sides + next
+        indices.push(a, b, d, b, c, d)
+      }
+    }
+
+    const geometry = new BufferGeometry()
+    const position = new BufferAttribute(this.corePositions, 3)
+    const normal = new BufferAttribute(this.coreNormals, 3)
+    position.setUsage(DynamicDrawUsage)
+    normal.setUsage(DynamicDrawUsage)
+    geometry.setAttribute("position", position)
+    geometry.setAttribute("normal", normal)
+    geometry.setIndex(indices)
+    return geometry
+  }
+
+  private profileScale(u: number): number {
+    const smooth = (a: number, b: number, value: number) => {
+      const t = Math.max(0, Math.min(1, (value - a) / Math.max(b - a, 0.0001)))
+      return t * t * (3 - 2 * t)
+    }
+    const uniforms = this.uniforms
+    const tailRamp = smooth(0, uniforms.u_tailRampEnd.value, u)
+    const neckMid = (uniforms.u_neckStart.value + uniforms.u_neckEnd.value) * 0.5
+    const neckDown = smooth(uniforms.u_neckStart.value, neckMid, u)
+    const neckUp = smooth(neckMid, uniforms.u_neckEnd.value, u)
+    const neckPinch = 1 - uniforms.u_neckDepth.value * neckDown * (1 - neckUp)
+    const headMid = (uniforms.u_headStart.value + uniforms.u_headEnd.value) * 0.5
+    const headUp = smooth(uniforms.u_headStart.value, headMid, u)
+    const headDown = smooth(headMid, uniforms.u_headEnd.value, u)
+    const headBulge = uniforms.u_headBulge.value * headUp * (1 - headDown)
+    const headBase = neckPinch * (1 + (uniforms.u_headRadius.value - 1) * headUp)
+    const tipClosure = 1 - smooth(0.97, 1, u)
+    const thickness = tailRamp * (headBase + headBulge) * tipClosure
+    return Math.max(
+      uniforms.u_scaleMin.value + (uniforms.u_scaleMax.value - uniforms.u_scaleMin.value) * thickness,
+      0.001
+    )
+  }
+
+  private updateCoreGeometry(): void {
+    if (!this.curve || !this.coreGeometry || !this.corePositions || !this.coreNormals) return
+    const rings = this.spineSegments ?? 0
+    const sides = Math.max(6, this.radialSegments ?? 0)
+    const binormal = new Vector3()
+    const radial = new Vector3()
+
+    for (let row = 0; row < rings; row++) {
+      const u = rings > 1 ? row / (rings - 1) : 0
+      const basis = this.curve.getBasisAtLocal(u)
+      binormal.crossVectors(basis.tangent, basis.normal).normalize()
+      const scale = this.profileScale(u) * 0.82
+      const radiusN = scale * this.uniforms.u_radiusN.value
+      const radiusB = scale * this.uniforms.u_radiusB.value
+
+      for (let col = 0; col < sides; col++) {
+        const angle = col / sides * Math.PI * 2 + u * this.uniforms.u_twistAmount.value
+        const cos = Math.cos(angle)
+        const sin = Math.sin(angle)
+        const index = (row * sides + col) * 3
+        radial.copy(basis.normal).multiplyScalar(cos * radiusN).addScaledVector(binormal, sin * radiusB)
+        this.corePositions[index] = basis.position.x + radial.x
+        this.corePositions[index + 1] = basis.position.y + radial.y
+        this.corePositions[index + 2] = basis.position.z + radial.z
+
+        radial.copy(basis.normal).multiplyScalar(cos * radiusB).addScaledVector(binormal, sin * radiusN).normalize()
+        this.coreNormals[index] = radial.x
+        this.coreNormals[index + 1] = radial.y
+        this.coreNormals[index + 2] = radial.z
+      }
+    }
+
+    this.coreGeometry.attributes.position.needsUpdate = true
+    this.coreGeometry.attributes.normal.needsUpdate = true
+    this.coreGeometry.computeBoundingSphere()
   }
 
   private updateTextures(): void {
@@ -231,6 +339,9 @@ class SnakeObject extends Object3D {
     // Create instanced mesh (frustumCulled=false because positions are computed in shader)
     this.mesh = new InstancedMesh(geometry, this.material, instanceCount)
     this.mesh.frustumCulled = false
+    // QA-only switch used to prove the compatibility body can stand alone when
+    // the scale shader is unavailable on a device.
+    this.mesh.visible = !new URLSearchParams(window.location.search).has("coreOnly")
 
     // Identity matrices — all positioning done in shader
     const matrix = new Matrix4()
@@ -239,12 +350,25 @@ class SnakeObject extends Object3D {
     }
 
     this.add(this.mesh)
+
+    if (!Properties.isBaseline) {
+      this.coreGeometry = this.createCoreGeometry()
+      this.coreMesh = new Mesh(
+        this.coreGeometry,
+        new MeshBasicMaterial({ color: 0x187e72, side: DoubleSide })
+      )
+      this.coreMesh.name = "serpent-compatible-core"
+      this.coreMesh.frustumCulled = false
+      this.coreMesh.renderOrder = -1
+      this.add(this.coreMesh)
+    }
   }
 
   update(delta: number): void {
     this.distance += delta * this.config.speed
     this.curve?.configureStartEnd(this.distance, this.config.length)
     this.updateTextures()
+    this.updateCoreGeometry()
     this.uniforms.u_timeOffset.value = this.distance * 0.1
   }
 
@@ -253,6 +377,8 @@ class SnakeObject extends Object3D {
     this.material?.dispose()
     this.positionTex?.dispose()
     this.normalTex?.dispose()
+    this.coreGeometry?.dispose()
+    if (this.coreMesh?.material instanceof MeshBasicMaterial) this.coreMesh.material.dispose()
   }
 
   /* --------------------------------- public --------------------------------- */
@@ -336,6 +462,7 @@ export class Snake {
   endlessCurve?: EndlessCurve
   private curveOptions: import("../curves/CurveGenerator").CurveGeneratorOptions = {}
   private ball?: Ball
+  private group?: Group
 
   // sphere
   private targetSpherePosition = new Vector3()
@@ -343,6 +470,14 @@ export class Snake {
   // raycasting for mouse attraction
   private raycaster = new Raycaster()
   private groundPlane = new Plane(new Vector3(0, 1, 0), 0)
+  private interactionPlane = new Plane()
+  private interactionPlaneNormal = new Vector3()
+  private interactionPlaneOrigin = new Vector3(0, 0, 0)
+  private worldMouseTarget = new Vector3()
+  private compositionMin = new Vector3()
+  private compositionMax = new Vector3()
+  private compositionCenter = new Vector3()
+  private compositionOffset = new Vector3()
   private mouseTarget = new Vector3()
   private ritualPhase = -1
 
@@ -522,6 +657,7 @@ export class Snake {
 
   buildScene() {
     const group = new Group()
+    this.group = group
 
     // Get quality-based configuration
     const config = Properties.getSnakeConfig()
@@ -548,7 +684,7 @@ export class Snake {
       tiltStrength: Math.PI / 24, // 7.5°
 
       // Coil
-      coilAmplitude: 3.0,
+      coilAmplitude: Properties.viewportWidth <= 600 ? 1.6 : 3.0,
       coilFrequency: 0.25,
     }
     const curveGenerator = createCurveGenerator(this.curveOptions)
@@ -592,7 +728,25 @@ export class Snake {
   update(camera: PerspectiveCamera, delta: number): void {
     // raycast
     this.raycaster.setFromCamera(Input.mouseXY, camera)
-    this.raycaster.ray.intersectPlane(this.groundPlane, this.mouseTarget)
+    if (Properties.isBaseline) {
+      this.raycaster.ray.intersectPlane(this.groundPlane, this.mouseTarget)
+    } else {
+      // A horizontal ground plane turns a small screen-space circle into a huge
+      // trapezoid under a pitched perspective camera, sending the serpent far
+      // outside a tall mobile viewport. A camera-facing plane through the world
+      // origin preserves the gesture's screen-space scale at every orbit angle.
+      camera.getWorldDirection(this.interactionPlaneNormal)
+      this.interactionPlaneOrigin.copy(this.group?.position ?? new Vector3())
+      this.interactionPlane.setFromNormalAndCoplanarPoint(
+        this.interactionPlaneNormal,
+        this.interactionPlaneOrigin
+      )
+      if (this.raycaster.ray.intersectPlane(this.interactionPlane, this.worldMouseTarget)) {
+        // Curves and the target ball live in group-local space. Subtract the
+        // visual composition offset so a touch still lands under the finger.
+        this.mouseTarget.copy(this.worldMouseTarget).sub(this.group?.position ?? new Vector3())
+      }
+    }
 
     // lerp mouse
     this.targetSpherePosition.lerp(this.mouseTarget, 0.1)
@@ -611,6 +765,8 @@ export class Snake {
     // update snake
     this.snakeObject?.update(delta)
     this.snakeObject.uniforms.u_cameraPosition.value.copy(camera.position)
+
+    if (!Properties.isBaseline) this.updateComposition(delta)
 
     // Update debug visualizations only in development
     if (import.meta.env.DEV) {
@@ -643,5 +799,26 @@ export class Snake {
         }
       }
     }
+  }
+
+  private updateComposition(delta: number): void {
+    if (!this.group || !this.endlessCurve) return
+    this.compositionMin.set(Infinity, Infinity, Infinity)
+    this.compositionMax.set(-Infinity, -Infinity, -Infinity)
+
+    // Sampling the same local curve is enough for a stable screen composition;
+    // no GPU readback or second motion path is involved.
+    for (let i = 0; i <= 16; i++) {
+      const point = this.endlessCurve.getPointAtLocal(i / 16)
+      this.compositionMin.min(point)
+      this.compositionMax.max(point)
+    }
+    this.compositionMin.min(this.targetSpherePosition)
+    this.compositionMax.max(this.targetSpherePosition)
+    this.compositionCenter.addVectors(this.compositionMin, this.compositionMax).multiplyScalar(0.5)
+    this.compositionOffset.copy(this.compositionCenter).multiplyScalar(-1)
+
+    const follow = 1 - Math.exp(-delta * 4.5)
+    this.group.position.lerp(this.compositionOffset, follow)
   }
 }

@@ -197,7 +197,9 @@ export class ExperienceUI {
       this.guideAge += delta
       const phase = Math.min(1, this.guideAge / 3.2)
       const angle = -Math.PI * 0.65 + phase * TAU * 0.78
-      const radius = Math.min(innerWidth, innerHeight) * 0.28
+      // The guide demonstrates the same circular gesture without sending a
+      // long procedural body to the edge of a narrow mobile frustum.
+      const radius = Math.min(innerWidth, innerHeight) * 0.2
       const x = innerWidth * 0.5 + Math.cos(angle) * radius
       const y = innerHeight * 0.5 + Math.sin(angle) * radius
       this.updateInput(x, y)

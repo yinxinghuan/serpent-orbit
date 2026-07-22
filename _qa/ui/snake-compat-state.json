@@ -1,0 +1,79 @@
+{
+  "compat-after-390x844": {
+    "viewport": [
+      390,
+      844
+    ],
+    "canvas": [
+      390,
+      844
+    ],
+    "webgl2": true,
+    "maxVertexTextures": 32,
+    "floatLinear": true,
+    "centerPixel": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "compat-after-320x568": {
+    "viewport": [
+      320,
+      568
+    ],
+    "canvas": [
+      320,
+      568
+    ],
+    "webgl2": true,
+    "maxVertexTextures": 32,
+    "floatLinear": true,
+    "centerPixel": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "core-only-390x844": {
+    "viewport": [
+      390,
+      844
+    ],
+    "canvas": [
+      390,
+      844
+    ],
+    "webgl2": true,
+    "maxVertexTextures": 32,
+    "floatLinear": true,
+    "centerPixel": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "baseline-390x844": {
+    "viewport": [
+      390,
+      844
+    ],
+    "canvas": [
+      390,
+      844
+    ],
+    "webgl2": true,
+    "maxVertexTextures": 32,
+    "floatLinear": true,
+    "centerPixel": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "errors": []
+}

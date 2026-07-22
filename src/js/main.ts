@@ -72,7 +72,13 @@ class App {
     // setup scene
     this.scene = new Scene()
     this.camera = new PerspectiveCamera(45, Properties.viewportWidth / Properties.viewportHeight, 0.1, 200)
-    this.camera.position.set(0, 15, 20)
+    if (!Properties.isBaseline && Properties.viewportWidth <= 600) {
+      // Tall mobile screens have a narrow horizontal frustum. Pull back while
+      // keeping the same pitch so the complete moving body remains in frame.
+      this.camera.position.set(0, 12, 18)
+    } else {
+      this.camera.position.set(0, 15, 20)
+    }
     this.camera.lookAt(0, 0, 0)
     this.controls = new OrbitControls(this.camera, this.gl.domElement)
     this.controls.enableDamping = true
