@@ -190,6 +190,10 @@ export class ExperienceUI {
       if (phase >= 1) {
         this.guideAge = -1
         this.ghost?.classList.remove("sh-ghost--active")
+        // The guide deliberately stops short of a full circle. Hand the real
+        // target back to centre when the ghost disappears, otherwise the snake
+        // keeps orbiting the guide's final off-screen-biased position.
+        this.updateInput(innerWidth * 0.5, innerHeight * 0.5)
         this.idleAge = 0
       }
     }
